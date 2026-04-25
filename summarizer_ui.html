@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinical Note Summarizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f8fafc; --white: #ffffff; --border: #e2e8f0;
+    --text: #1e293b; --text-muted: #64748b; --text-dim: #94a3b8;
+    --accent: #3b82f6; --accent-light: #eff6ff;
+    --green: #16a34a; --green-light: #f0fdf4; --green-border: #bbf7d0;
+    --amber: #d97706; --amber-light: #fffbeb; --amber-border: #fde68a;
+    --red: #dc2626; --red-light: #fef2f2; --red-border: #fecaca;
+    --purple: #7c3aed; --purple-light: #f5f3ff; --purple-border: #ddd6fe;
+    --sans: 'Inter', sans-serif; --mono: 'JetBrains Mono', monospace;
+  }
+  html, body { min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.6; }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
+
+  .header { margin-bottom: 36px; }
+  .header-top { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .header-icon { width: 38px; height: 38px; background: var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .header-title { font-size: 22px; font-weight: 600; }
+  .header-sub { font-size: 14px; color: var(--text-muted); }
+
+  .card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+
+  .label { font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+
+  .input-field { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.6; resize: vertical; min-height: 200px; outline: none; transition: border-color 0.15s; }
+  .input-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.08); }
+  .input-field::placeholder { color: var(--text-dim); font-family: var(--sans); font-size: 13px; }
+
+  .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+  .hint { font-size: 12px; color: var(--text-dim); font-family: var(--mono); }
+
+  .submit-btn { background: var(--accent); border: none; border-radius: 8px; padding: 10px 24px; color: white; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: var(--sans); }
+  .submit-btn:hover { background: #2563eb; }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .loading { display: none; text-align: center; padding: 40px; }
+  .loading.visible { display: block; }
+  .dots { display: flex; justify-content: center; gap: 5px; margin-bottom: 12px; }
+  .dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: bounce 1.2s ease-in-out infinite; }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,100% { transform: translateY(0); opacity: 0.3; } 50% { transform: translateY(-6px); opacity: 1; } }
+  .loading-text { font-size: 13px; color: var(--text-muted); }
+
+  .error-card { display: none; background: var(--red-light); border: 1px solid var(--red-border); border-radius: 10px; padding: 16px 20px; color: var(--red); font-size: 13px; margin-bottom: 20px; }
+  .error-card.visible { display: block; }
+
+  .result { display: none; animation: fadeIn 0.3s ease; }
+  .result.visible { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Summary header card */
+  .summary-header { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+  .summary-title { font-size: 11px; font-weight: 500; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .chief-complaint { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+  .meta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .meta-chip { display: flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 12px; color: var(--text-muted); }
+  .meta-chip .meta-label { color: var(--text-dim); }
+  .meta-chip .meta-value { font-weight: 500; color: var(--text); }
+
+  /* Two column grid */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Section cards */
+  .section-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .section-title { font-size: 11px; font-weight: 500; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .section-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  .item-list { list-style: none; }
+  .item-list li { font-size: 13px; color: var(--text-muted); padding: 5px 0; border-bottom: 1px solid var(--bg); display: flex; align-items: flex-start; gap: 8px; line-height: 1.4; }
+  .item-list li:last-child { border-bottom: none; }
+  .item-list li::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; margin-top: 6px; }
+
+  /* Medication tags */
+  .med-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--bg); }
+  .med-item:last-child { border-bottom: none; }
+  .med-name { font-size: 13px; color: var(--text-muted); line-height: 1.4; flex: 1; }
+  .med-tag { font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
+  .med-tag.new { background: var(--green-light); color: var(--green); border: 1px solid var(--green-border); }
+  .med-tag.changed { background: var(--amber-light); color: var(--amber); border: 1px solid var(--amber-border); }
+  .med-tag.continued { background: var(--bg); color: var(--text-dim); border: 1px solid var(--border); }
+
+  /* Clinical summary */
+  .clinical-summary { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .summary-text { font-size: 14px; color: var(--text-muted); line-height: 1.8; border-left: 3px solid var(--accent); padding-left: 14px; }
+
+  .footer { text-align: center; font-size: 12px; color: var(--text-dim); padding-top: 24px; font-family: var(--mono); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-top">
+      <div class="header-icon">📋</div>
+      <div class="header-title">Clinical Note Summarizer</div>
+    </div>
+    <div class="header-sub">Paste a discharge summary and get a structured clinical overview instantly.</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Discharge summary</div>
+    <textarea class="input-field" id="inputField" placeholder="Paste the full discharge summary here..."></textarea>
+    <div class="card-footer">
+      <span class="hint">Powered by LangChain + Claude + Pydantic</span>
+      <button class="submit-btn" id="submitBtn" onclick="submitNote()">Summarize →</button>
+    </div>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="loading-text">Analyzing clinical note...</div>
+  </div>
+
+  <div class="error-card" id="errorCard"></div>
+
+  <div class="result" id="result">
+
+    <!-- Header -->
+    <div class="summary-header">
+      <div class="summary-title">Chief Complaint</div>
+      <div class="chief-complaint" id="chiefComplaint">—</div>
+      <div class="meta-row">
+        <div class="meta-chip">
+          <span class="meta-label">Primary Dx</span>
+          <span class="meta-value" id="primaryDx">—</span>
+        </div>
+        <div class="meta-chip">
+          <span class="meta-label">Hospital Days</span>
+          <span class="meta-value" id="hospitalDays">—</span>
+        </div>
+        <div class="meta-chip">
+          <span class="meta-label">Condition</span>
+          <span class="meta-value" id="condition">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clinical summary -->
+    <div class="clinical-summary">
+      <div class="section-title"><span class="section-dot" style="background:#3b82f6"></span>Clinical Summary</div>
+      <div class="summary-text" id="clinicalSummary">—</div>
+    </div>
+
+    <!-- Two column grid -->
+    <div class="grid-2">
+
+      <!-- Diagnoses -->
+      <div class="section-card">
+        <div class="section-title"><span class="section-dot" style="background:#dc2626"></span>Diagnoses</div>
+        <ul class="item-list" id="diagnoses"></ul>
+      </div>
+
+      <!-- Procedures -->
+      <div class="section-card">
+        <div class="section-title"><span class="section-dot" style="background:#7c3aed"></span>Key Procedures</div>
+        <ul class="item-list" id="procedures"></ul>
+      </div>
+
+    </div>
+
+    <div class="grid-2">
+
+      <!-- Medications -->
+      <div class="section-card">
+        <div class="section-title"><span class="section-dot" style="background:#16a34a"></span>Discharge Medications</div>
+        <div id="medications"></div>
+      </div>
+
+      <!-- Follow up -->
+      <div class="section-card">
+        <div class="section-title"><span class="section-dot" style="background:#d97706"></span>Follow Up</div>
+        <ul class="item-list" id="followUp"></ul>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="footer">Clinical Note Summarizer · LangChain · Anthropic Claude · Pydantic · FastAPI</div>
+</div>
+
+<script>
+  const API_URL = 'http://127.0.0.1:8000';
+
+  function setLoading(loading) {
+    document.getElementById('submitBtn').disabled = loading;
+    document.getElementById('loading').classList.toggle('visible', loading);
+    if (loading) {
+      document.getElementById('result').classList.remove('visible');
+      document.getElementById('errorCard').classList.remove('visible');
+    }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorCard');
+    el.textContent = '⚠ ' + msg;
+    el.classList.add('visible');
+  }
+
+  function listItems(containerId, items) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = '';
+    (items || []).forEach(item => {
+      const li = document.createElement('li');
+      li.textContent = item;
+      el.appendChild(li);
+    });
+  }
+
+  function showResult(data) {
+    document.getElementById('chiefComplaint').textContent = data.chief_complaint;
+    document.getElementById('primaryDx').textContent = data.primary_diagnosis;
+    document.getElementById('hospitalDays').textContent = data.hospital_days + ' days';
+    document.getElementById('condition').textContent = data.discharge_condition;
+    document.getElementById('clinicalSummary').textContent = data.clinical_summary;
+
+    listItems('diagnoses', data.all_diagnoses);
+    listItems('procedures', data.key_procedures);
+    listItems('followUp', data.follow_up);
+
+    // Medications with tags
+    const medContainer = document.getElementById('medications');
+    medContainer.innerHTML = '';
+    (data.discharge_medications || []).forEach(med => {
+      const isNew = (data.new_medications || []).some(n => med.includes(n.split(' ')[0]));
+      const isChanged = (data.changed_medications || []).some(c => med.includes(c.split(' ')[0]));
+      const tag = isNew ? 'new' : isChanged ? 'changed' : 'continued';
+      const label = isNew ? 'New' : isChanged ? 'Changed' : 'Continued';
+
+      const div = document.createElement('div');
+      div.className = 'med-item';
+      div.innerHTML = `
+        <span class="med-name">${med}</span>
+        <span class="med-tag ${tag}">${label}</span>`;
+      medContainer.appendChild(div);
+    });
+
+    document.getElementById('result').classList.add('visible');
+  }
+
+  async function submitNote() {
+    const note = document.getElementById('inputField').value.trim();
+    if (!note) return;
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/summarize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note })
+      });
+
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      const data = await response.json();
+      showResult(data);
+
+    } catch (err) {
+      if (err.message.includes('fetch') || err.message.includes('Failed') || err.message.includes('NetworkError')) {
+        showError('Cannot connect to the API. Make sure it is running: uvicorn api:app --reload --port 8000');
+      } else {
+        showError(err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  document.getElementById('inputField').addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitNote();
+  });
+</script>
+</body>
+</html>
