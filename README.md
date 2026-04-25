@@ -6,11 +6,7 @@ Built with LangChain, Anthropic Claude, and Pydantic structured outputs.
 
 ---
 
-## Demo
 
-> Add your demo screenshot here
-
----
 
 ## What It Does
 
